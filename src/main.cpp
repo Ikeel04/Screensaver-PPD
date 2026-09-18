@@ -1,418 +1,167 @@
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
+// Proyecto #1 - Computacion Paralela y Distribuida (UVG, 2026)
+// Screensaver de fuegos artificiales con OpenGL y OpenMP.
+//
+// Flujo general:
+//   1. Leer y validar argumentos (Config).
+//   2. Crear la ventana y los recursos de OpenGL (Renderer).
+//   3. Ciclo principal: simular (seq/par1/par2) -> dibujar -> mostrar FPS.
+//   4. Liberar recursos (destructor de Renderer).
+// Con --benchmark, en vez del ciclo interactivo se ejecutan las mediciones.
+
+#include <omp.h>
 
 #include <algorithm>
-#include <cmath>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <random>
 #include <sstream>
 #include <stdexcept>
-#include <string>
-#include <vector>
 
-constexpr int WINDOW_WIDTH = 800;
-constexpr int WINDOW_HEIGHT = 600;
-constexpr int DEFAULT_PARTICLES = 500;
-constexpr int MAX_PARTICLES = 200000;
-constexpr float GRAVITY = -0.65f;
-constexpr float PARTICLE_SIZE = 7.0f;
-constexpr float PI = 3.14159265358979323846f;
+#include "benchmark.hpp"
+#include "config.hpp"
+#include "renderer.hpp"
+#include "simulation.hpp"
 
-struct Particle {
-    float x;
-    float y;
-    float vx;
-    float vy;
-    float r;
-    float g;
-    float b;
-    float life;
-};
+namespace {
 
-struct Vertex {
-    float x;
-    float y;
-    float r;
-    float g;
-    float b;
-    float a;
-};
+constexpr float MAX_DELTA_TIME = 0.05f;      // evita saltos si la ventana se pausa
+constexpr double TITLE_UPDATE_SECONDS = 0.5;  // cada cuanto se actualiza el titulo
+constexpr double CONSOLE_UPDATE_SECONDS = 1.0;
 
-std::mt19937 randomEngine(std::random_device{}());
+// Cambia de version con las teclas 1, 2 y 3 (solo cuando cambia).
+void handleModeKeys(const Renderer& renderer, SimulationMode& mode) {
+    SimulationMode requested = mode;
 
-float randomFloat(float min, float max) {
-    std::uniform_real_distribution<float> distribution(min, max);
-    return distribution(randomEngine);
-}
-
-int parseParticleCount(int argc, char* argv[]) {
-    if (argc < 2) {
-        std::cout << "No se especifico N. Se utilizara el valor por defecto: "
-                  << DEFAULT_PARTICLES << '\n';
-        return DEFAULT_PARTICLES;
+    if (renderer.isKeyPressed(GLFW_KEY_1)) {
+        requested = SimulationMode::Sequential;
+    } else if (renderer.isKeyPressed(GLFW_KEY_2)) {
+        requested = SimulationMode::ParallelV1;
+    } else if (renderer.isKeyPressed(GLFW_KEY_3)) {
+        requested = SimulationMode::ParallelV2;
     }
 
-    try {
-        const std::string argument = argv[1];
-        std::size_t processedCharacters = 0;
-        const int particleCount = std::stoi(argument, &processedCharacters);
-
-        if (processedCharacters != argument.length()) {
-            throw std::invalid_argument("El argumento contiene caracteres invalidos.");
-        }
-
-        if (particleCount <= 0 || particleCount > MAX_PARTICLES) {
-            throw std::out_of_range("N fuera del rango permitido.");
-        }
-
-        return particleCount;
-    } catch (const std::exception&) {
-        std::cerr << "Error: N debe ser un entero entre 1 y "
-                  << MAX_PARTICLES << ".\n";
-        std::exit(EXIT_FAILURE);
+    if (requested != mode) {
+        mode = requested;
+        std::cout << ">> Cambio de version: " << modeToString(mode) << '\n';
     }
 }
 
-GLuint compileShader(GLenum type, const char* source) {
-    const GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, &source, nullptr);
-    glCompileShader(shader);
+// Ciclo interactivo del screensaver.
+int runScreensaver(const Config& config) {
+    Renderer renderer(config.windowWidth, config.windowHeight, config.particleCount, config.vsync);
 
-    GLint success = GL_FALSE;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    SimulationState state;
+    initializeSimulation(state, config.particleCount, config.fireworkCount,
+                         renderer.worldHalfWidth(), config.seed);
 
-    if (success != GL_TRUE) {
-        GLint logLength = 0;
-        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
+    SimulationMode mode = config.mode;
+    const int threads = omp_get_max_threads();
 
-        std::string log(static_cast<std::size_t>(logLength), '\0');
-        glGetShaderInfoLog(shader, logLength, nullptr, log.data());
-        glDeleteShader(shader);
-        throw std::runtime_error("Error compilando shader:\n" + log);
-    }
+    std::cout << "Screensaver iniciado | N = " << config.particleCount
+              << " | fuegos = " << config.fireworkCount << " | version = " << modeToString(mode)
+              << " | hilos = " << threads << " | vsync = " << (config.vsync ? "si" : "no")
+              << " | semilla = " << config.seed << '\n'
+              << "Teclas: 1 = seq, 2 = par1, 3 = par2, ESC = salir\n";
 
-    return shader;
-}
+    double previousTime = glfwGetTime();
+    double titleTimer = previousTime;
+    double consoleTimer = previousTime;
+    int framesSinceTitle = 0;
+    double simulationSecondsSinceTitle = 0.0;
+    double lastFps = 0.0;
 
-GLuint createShaderProgram() {
-    const char* vertexShaderSource = R"(
-        #version 330 core
-        layout(location = 0) in vec2 position;
-        layout(location = 1) in vec4 color;
-
-        out vec4 particleColor;
-        uniform float pointSize;
-
-        void main() {
-            gl_Position = vec4(position, 0.0, 1.0);
-            gl_PointSize = pointSize;
-            particleColor = color;
+    while (!renderer.shouldClose()) {
+        if (renderer.isKeyPressed(GLFW_KEY_ESCAPE)) {
+            renderer.requestClose();
+            break;
         }
-    )";
+        handleModeKeys(renderer, mode);
 
-    const char* fragmentShaderSource = R"(
-        #version 330 core
-        in vec4 particleColor;
-        out vec4 fragmentColor;
+        const double currentTime = glfwGetTime();
+        const float deltaTime =
+            std::min(static_cast<float>(currentTime - previousTime), MAX_DELTA_TIME);
+        previousTime = currentTime;
 
-        void main() {
-            vec2 centerOffset = gl_PointCoord - vec2(0.5);
-            if (length(centerOffset) > 0.5) {
-                discard;
+        // Simulacion (la parte que se paraleliza) medida por separado del render.
+        const double stepStart = omp_get_wtime();
+        stepSimulation(state, mode, deltaTime);
+        simulationSecondsSinceTitle += omp_get_wtime() - stepStart;
+
+        // Render: siempre en el hilo principal.
+        renderer.drawFrame(state.vertices, config.particleSize);
+        ++framesSinceTitle;
+
+        // Despliegue de FPS en el titulo y en consola.
+        const double elapsed = currentTime - titleTimer;
+        if (elapsed >= TITLE_UPDATE_SECONDS) {
+            lastFps = framesSinceTitle / elapsed;
+            const double simulationMs = simulationSecondsSinceTitle * 1000.0 / framesSinceTitle;
+
+            std::ostringstream title;
+            title << "OpenGL Fireworks | " << modeToString(mode) << " ("
+                  << (mode == SimulationMode::Sequential ? 1 : threads) << " hilos)"
+                  << " | N = " << config.particleCount << " | FPS = " << std::fixed
+                  << std::setprecision(1) << lastFps << " | sim = " << std::setprecision(2)
+                  << simulationMs << " ms";
+            renderer.setTitle(title.str());
+
+            if (currentTime - consoleTimer >= CONSOLE_UPDATE_SECONDS) {
+                std::cout << "FPS = " << std::fixed << std::setprecision(2) << lastFps
+                          << " | sim = " << simulationMs << " ms | " << modeToString(mode) << '\n';
+                consoleTimer = currentTime;
             }
 
-            float distanceFromCenter = length(centerOffset) * 2.0;
-            float brightness = 1.0 - distanceFromCenter * 0.35;
-            fragmentColor = vec4(
-                particleColor.rgb * brightness,
-                particleColor.a
-            );
+            framesSinceTitle = 0;
+            simulationSecondsSinceTitle = 0.0;
+            titleTimer = currentTime;
         }
-    )";
-
-    const GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexShaderSource);
-    const GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
-    const GLuint shaderProgram = glCreateProgram();
-
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
-
-    GLint success = GL_FALSE;
-    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-
-    if (success != GL_TRUE) {
-        GLint logLength = 0;
-        glGetProgramiv(shaderProgram, GL_INFO_LOG_LENGTH, &logLength);
-
-        std::string log(static_cast<std::size_t>(logLength), '\0');
-        glGetProgramInfoLog(shaderProgram, logLength, nullptr, log.data());
-        glDeleteProgram(shaderProgram);
-        throw std::runtime_error("Error enlazando shader program:\n" + log);
     }
 
-    return shaderProgram;
+    std::cout << "Screensaver finalizado.\n";
+    return EXIT_SUCCESS;
 }
 
-void createExplosion(std::vector<Particle>& particles, float centerX, float centerY) {
-    for (Particle& particle : particles) {
-        const float angle = randomFloat(0.0f, 2.0f * PI);
-        const float speed = randomFloat(0.20f, 0.85f);
-
-        particle.x = centerX;
-        particle.y = centerY;
-        particle.vx = std::cos(angle) * speed;
-        particle.vy = std::sin(angle) * speed;
-
-        // Evita colores demasiado oscuros sobre el fondo.
-        particle.r = randomFloat(0.35f, 1.0f);
-        particle.g = randomFloat(0.35f, 1.0f);
-        particle.b = randomFloat(0.35f, 1.0f);
-        particle.life = randomFloat(0.7f, 1.0f);
-    }
-}
-
-void updateParticles(std::vector<Particle>& particles, float deltaTime) {
-    // Esta seccion se mantiene secuencial en Entrega 2.
-    // Es el candidato natural para #pragma omp parallel for en una entrega posterior.
-    for (Particle& particle : particles) {
-        if (particle.life <= 0.0f) {
-            continue;
-        }
-
-        // Cinematica basica: v = v0 + g*dt; p = p0 + v*dt.
-        particle.vy += GRAVITY * deltaTime;
-        particle.x += particle.vx * deltaTime;
-        particle.y += particle.vy * deltaTime;
-
-        // Desvanecimiento progresivo.
-        particle.life -= 0.40f * deltaTime;
-        particle.life = std::max(0.0f, particle.life);
-    }
-}
-
-bool explosionFinished(const std::vector<Particle>& particles) {
-    return std::none_of(
-        particles.begin(),
-        particles.end(),
-        [](const Particle& particle) { return particle.life > 0.0f; }
-    );
-}
-
-void fillVertexBuffer(const std::vector<Particle>& particles, std::vector<Vertex>& vertices) {
-    vertices.clear();
-    vertices.reserve(particles.size());
-
-    for (const Particle& particle : particles) {
-        if (particle.life <= 0.0f) {
-            continue;
-        }
-
-        vertices.push_back({
-            particle.x,
-            particle.y,
-            particle.r,
-            particle.g,
-            particle.b,
-            particle.life
-        });
-    }
-}
-
-void framebufferSizeCallback(GLFWwindow*, int width, int height) {
-    glViewport(0, 0, width, height);
-}
-
-void processInput(GLFWwindow* window) {
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-        glfwSetWindowShouldClose(window, GLFW_TRUE);
-    }
-}
+}  // namespace
 
 int main(int argc, char* argv[]) {
-    const int particleCount = parseParticleCount(argc, argv);
+    Config config;
 
-    if (glfwInit() != GLFW_TRUE) {
-        std::cerr << "Error inicializando GLFW.\n";
+    // 1. Captura y validacion de argumentos.
+    try {
+        if (parseArguments(argc, argv, config) == ParseStatus::ShowHelp) {
+            printUsage(argv[0]);
+            return EXIT_SUCCESS;
+        }
+    } catch (const std::invalid_argument& error) {
+        std::cerr << "Error: " << error.what() << "\n"
+                  << "Use " << argv[0] << " --help para ver las opciones.\n";
         return EXIT_FAILURE;
     }
 
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-    GLFWwindow* window = glfwCreateWindow(
-        WINDOW_WIDTH,
-        WINDOW_HEIGHT,
-        "OpenGL Fireworks",
-        nullptr,
-        nullptr
-    );
-
-    if (window == nullptr) {
-        std::cerr << "Error creando la ventana.\n";
-        glfwTerminate();
-        return EXIT_FAILURE;
+    // Semilla aleatoria si el usuario no dio una.
+    if (!config.seedProvided) {
+        config.seed = static_cast<std::uint64_t>(std::random_device{}());
     }
 
-    glfwMakeContextCurrent(window);
-    glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
-
-    // Sincroniza el renderizado con el refresco del monitor durante la POC.
-    glfwSwapInterval(1);
-
-    glewExperimental = GL_TRUE;
-    if (glewInit() != GLEW_OK) {
-        std::cerr << "Error inicializando GLEW.\n";
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return EXIT_FAILURE;
+    // Cantidad de hilos para las versiones paralelas.
+    if (config.threadCount > 0) {
+        omp_set_num_threads(config.threadCount);
     }
-
-    glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-    glEnable(GL_PROGRAM_POINT_SIZE);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    GLuint shaderProgram = 0;
-    GLuint vertexArray = 0;
-    GLuint vertexBuffer = 0;
 
     try {
-        shaderProgram = createShaderProgram();
-
-        glGenVertexArrays(1, &vertexArray);
-        glGenBuffers(1, &vertexBuffer);
-
-        glBindVertexArray(vertexArray);
-        glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-        glBufferData(
-            GL_ARRAY_BUFFER,
-            static_cast<GLsizeiptr>(particleCount * sizeof(Vertex)),
-            nullptr,
-            GL_DYNAMIC_DRAW
-        );
-
-        glVertexAttribPointer(
-            0,
-            2,
-            GL_FLOAT,
-            GL_FALSE,
-            sizeof(Vertex),
-            reinterpret_cast<void*>(0)
-        );
-        glEnableVertexAttribArray(0);
-
-        glVertexAttribPointer(
-            1,
-            4,
-            GL_FLOAT,
-            GL_FALSE,
-            sizeof(Vertex),
-            reinterpret_cast<void*>(2 * sizeof(float))
-        );
-        glEnableVertexAttribArray(1);
-        glBindVertexArray(0);
-
-        std::vector<Particle> particles(static_cast<std::size_t>(particleCount));
-        std::vector<Vertex> vertices;
-
-        createExplosion(
-            particles,
-            randomFloat(-0.55f, 0.55f),
-            randomFloat(-0.10f, 0.55f)
-        );
-
-        double previousFrameTime = glfwGetTime();
-        double fpsTimer = previousFrameTime;
-        int renderedFrames = 0;
-
-        while (!glfwWindowShouldClose(window)) {
-            processInput(window);
-
-            const double currentTime = glfwGetTime();
-            float deltaTime = static_cast<float>(currentTime - previousFrameTime);
-            previousFrameTime = currentTime;
-
-            // Evita saltos grandes si la aplicacion se pausa o pierde foco.
-            deltaTime = std::min(deltaTime, 0.05f);
-
-            updateParticles(particles, deltaTime);
-
-            if (explosionFinished(particles)) {
-                createExplosion(
-                    particles,
-                    randomFloat(-0.55f, 0.55f),
-                    randomFloat(-0.10f, 0.55f)
-                );
+        if (config.benchmark) {
+            if (config.simulationOnly) {
+                return runBenchmark(config, nullptr);
             }
-
-            fillVertexBuffer(particles, vertices);
-
-            glClearColor(0.015f, 0.018f, 0.075f, 1.0f);
-            glClear(GL_COLOR_BUFFER_BIT);
-
-            glUseProgram(shaderProgram);
-            const GLint pointSizeLocation = glGetUniformLocation(shaderProgram, "pointSize");
-            glUniform1f(pointSizeLocation, PARTICLE_SIZE);
-
-            glBindVertexArray(vertexArray);
-            glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-            glBufferSubData(
-                GL_ARRAY_BUFFER,
-                0,
-                static_cast<GLsizeiptr>(vertices.size() * sizeof(Vertex)),
-                vertices.data()
-            );
-
-            glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(vertices.size()));
-
-            glfwSwapBuffers(window);
-            glfwPollEvents();
-
-            ++renderedFrames;
-            const double fpsElapsed = currentTime - fpsTimer;
-
-            if (fpsElapsed >= 0.5) {
-                const double fps = renderedFrames / fpsElapsed;
-                std::ostringstream title;
-                title << "OpenGL Fireworks"
-                      << " | N = " << particleCount
-                      << " | FPS = " << std::fixed << std::setprecision(1) << fps;
-
-                glfwSetWindowTitle(window, title.str().c_str());
-                renderedFrames = 0;
-                fpsTimer = currentTime;
-            }
+            // En benchmark se desactiva vsync para medir los FPS reales.
+            Renderer renderer(config.windowWidth, config.windowHeight, config.particleCount, false);
+            return runBenchmark(config, &renderer);
         }
+
+        return runScreensaver(config);
     } catch (const std::exception& error) {
         std::cerr << "Error: " << error.what() << '\n';
-
-        if (vertexBuffer != 0) {
-            glDeleteBuffers(1, &vertexBuffer);
-        }
-        if (vertexArray != 0) {
-            glDeleteVertexArrays(1, &vertexArray);
-        }
-        if (shaderProgram != 0) {
-            glDeleteProgram(shaderProgram);
-        }
-
-        glfwDestroyWindow(window);
-        glfwTerminate();
         return EXIT_FAILURE;
     }
-
-    glDeleteBuffers(1, &vertexBuffer);
-    glDeleteVertexArrays(1, &vertexArray);
-    glDeleteProgram(shaderProgram);
-
-    glfwDestroyWindow(window);
-    glfwTerminate();
-    return EXIT_SUCCESS;
 }
