@@ -1,0 +1,97 @@
+
+=== BENCHMARK ===
+N = 500000 | fuegos = 6 | mediciones = 10 | frames por medicion = 100 | render = no | nucleos disponibles = 20
+Hilos a probar: 4 8 16
+
+[ seq | hilos   1] medicion  1/10 | sim =    7.020 ms/frame | frame =    7.020 ms | FPS =    142.4
+[ seq | hilos   1] medicion  2/10 | sim =    7.056 ms/frame | frame =    7.056 ms | FPS =    141.7
+[ seq | hilos   1] medicion  3/10 | sim =    7.014 ms/frame | frame =    7.014 ms | FPS =    142.6
+[ seq | hilos   1] medicion  4/10 | sim =    6.928 ms/frame | frame =    6.928 ms | FPS =    144.3
+[ seq | hilos   1] medicion  5/10 | sim =    6.646 ms/frame | frame =    6.647 ms | FPS =    150.5
+[ seq | hilos   1] medicion  6/10 | sim =    6.627 ms/frame | frame =    6.627 ms | FPS =    150.9
+[ seq | hilos   1] medicion  7/10 | sim =    6.759 ms/frame | frame =    6.759 ms | FPS =    147.9
+[ seq | hilos   1] medicion  8/10 | sim =    6.751 ms/frame | frame =    6.751 ms | FPS =    148.1
+[ seq | hilos   1] medicion  9/10 | sim =    6.791 ms/frame | frame =    6.792 ms | FPS =    147.2
+[ seq | hilos   1] medicion 10/10 | sim =    6.650 ms/frame | frame =    6.650 ms | FPS =    150.4
+
+[par1 | hilos   4] medicion  1/10 | sim =    3.588 ms/frame | frame =    3.588 ms | FPS =    278.7
+[par1 | hilos   4] medicion  2/10 | sim =    3.625 ms/frame | frame =    3.626 ms | FPS =    275.8
+[par1 | hilos   4] medicion  3/10 | sim =    3.565 ms/frame | frame =    3.565 ms | FPS =    280.5
+[par1 | hilos   4] medicion  4/10 | sim =    3.679 ms/frame | frame =    3.680 ms | FPS =    271.8
+[par1 | hilos   4] medicion  5/10 | sim =    3.677 ms/frame | frame =    3.678 ms | FPS =    271.9
+[par1 | hilos   4] medicion  6/10 | sim =    3.552 ms/frame | frame =    3.552 ms | FPS =    281.5
+[par1 | hilos   4] medicion  7/10 | sim =    3.638 ms/frame | frame =    3.638 ms | FPS =    274.9
+[par1 | hilos   4] medicion  8/10 | sim =    3.661 ms/frame | frame =    3.661 ms | FPS =    273.2
+[par1 | hilos   4] medicion  9/10 | sim =    3.660 ms/frame | frame =    3.660 ms | FPS =    273.2
+[par1 | hilos   4] medicion 10/10 | sim =    3.647 ms/frame | frame =    3.647 ms | FPS =    274.2
+
+[par2 | hilos   4] medicion  1/10 | sim =    3.839 ms/frame | frame =    3.839 ms | FPS =    260.5
+[par2 | hilos   4] medicion  2/10 | sim =    3.650 ms/frame | frame =    3.651 ms | FPS =    273.9
+[par2 | hilos   4] medicion  3/10 | sim =    3.577 ms/frame | frame =    3.578 ms | FPS =    279.5
+[par2 | hilos   4] medicion  4/10 | sim =    3.932 ms/frame | frame =    3.932 ms | FPS =    254.3
+[par2 | hilos   4] medicion  5/10 | sim =    3.636 ms/frame | frame =    3.637 ms | FPS =    275.0
+[par2 | hilos   4] medicion  6/10 | sim =    3.847 ms/frame | frame =    3.848 ms | FPS =    259.9
+[par2 | hilos   4] medicion  7/10 | sim =    3.727 ms/frame | frame =    3.728 ms | FPS =    268.2
+[par2 | hilos   4] medicion  8/10 | sim =    3.846 ms/frame | frame =    3.846 ms | FPS =    260.0
+[par2 | hilos   4] medicion  9/10 | sim =    3.820 ms/frame | frame =    3.821 ms | FPS =    261.7
+[par2 | hilos   4] medicion 10/10 | sim =    3.717 ms/frame | frame =    3.718 ms | FPS =    269.0
+
+[par1 | hilos   8] medicion  1/10 | sim =    2.398 ms/frame | frame =    2.399 ms | FPS =    416.9
+[par1 | hilos   8] medicion  2/10 | sim =    2.513 ms/frame | frame =    2.513 ms | FPS =    398.0
+[par1 | hilos   8] medicion  3/10 | sim =    2.215 ms/frame | frame =    2.215 ms | FPS =    451.4
+[par1 | hilos   8] medicion  4/10 | sim =    2.290 ms/frame | frame =    2.290 ms | FPS =    436.7
+[par1 | hilos   8] medicion  5/10 | sim =    2.289 ms/frame | frame =    2.289 ms | FPS =    436.9
+[par1 | hilos   8] medicion  6/10 | sim =    2.267 ms/frame | frame =    2.267 ms | FPS =    441.1
+[par1 | hilos   8] medicion  7/10 | sim =    2.340 ms/frame | frame =    2.340 ms | FPS =    427.4
+[par1 | hilos   8] medicion  8/10 | sim =    2.275 ms/frame | frame =    2.275 ms | FPS =    439.6
+[par1 | hilos   8] medicion  9/10 | sim =    2.236 ms/frame | frame =    2.236 ms | FPS =    447.2
+[par1 | hilos   8] medicion 10/10 | sim =    2.376 ms/frame | frame =    2.377 ms | FPS =    420.8
+
+[par2 | hilos   8] medicion  1/10 | sim =    2.395 ms/frame | frame =    2.395 ms | FPS =    417.6
+[par2 | hilos   8] medicion  2/10 | sim =    2.303 ms/frame | frame =    2.304 ms | FPS =    434.1
+[par2 | hilos   8] medicion  3/10 | sim =    2.382 ms/frame | frame =    2.383 ms | FPS =    419.7
+[par2 | hilos   8] medicion  4/10 | sim =    2.401 ms/frame | frame =    2.402 ms | FPS =    416.4
+[par2 | hilos   8] medicion  5/10 | sim =    2.339 ms/frame | frame =    2.339 ms | FPS =    427.5
+[par2 | hilos   8] medicion  6/10 | sim =    2.339 ms/frame | frame =    2.339 ms | FPS =    427.4
+[par2 | hilos   8] medicion  7/10 | sim =    2.241 ms/frame | frame =    2.242 ms | FPS =    446.1
+[par2 | hilos   8] medicion  8/10 | sim =    2.298 ms/frame | frame =    2.298 ms | FPS =    435.1
+[par2 | hilos   8] medicion  9/10 | sim =    2.300 ms/frame | frame =    2.301 ms | FPS =    434.7
+[par2 | hilos   8] medicion 10/10 | sim =    2.321 ms/frame | frame =    2.321 ms | FPS =    430.8
+
+[par1 | hilos  16] medicion  1/10 | sim =    1.746 ms/frame | frame =    1.747 ms | FPS =    572.5
+[par1 | hilos  16] medicion  2/10 | sim =    1.680 ms/frame | frame =    1.680 ms | FPS =    595.3
+[par1 | hilos  16] medicion  3/10 | sim =    1.733 ms/frame | frame =    1.734 ms | FPS =    576.8
+[par1 | hilos  16] medicion  4/10 | sim =    1.714 ms/frame | frame =    1.714 ms | FPS =    583.4
+[par1 | hilos  16] medicion  5/10 | sim =    1.747 ms/frame | frame =    1.747 ms | FPS =    572.3
+[par1 | hilos  16] medicion  6/10 | sim =    1.824 ms/frame | frame =    1.824 ms | FPS =    548.2
+[par1 | hilos  16] medicion  7/10 | sim =    1.722 ms/frame | frame =    1.722 ms | FPS =    580.6
+[par1 | hilos  16] medicion  8/10 | sim =    1.690 ms/frame | frame =    1.690 ms | FPS =    591.7
+[par1 | hilos  16] medicion  9/10 | sim =    1.714 ms/frame | frame =    1.714 ms | FPS =    583.5
+[par1 | hilos  16] medicion 10/10 | sim =    1.685 ms/frame | frame =    1.685 ms | FPS =    593.4
+
+[par2 | hilos  16] medicion  1/10 | sim =    1.716 ms/frame | frame =    1.716 ms | FPS =    582.7
+[par2 | hilos  16] medicion  2/10 | sim =    1.840 ms/frame | frame =    1.841 ms | FPS =    543.3
+[par2 | hilos  16] medicion  3/10 | sim =    1.764 ms/frame | frame =    1.764 ms | FPS =    566.9
+[par2 | hilos  16] medicion  4/10 | sim =    1.727 ms/frame | frame =    1.727 ms | FPS =    579.0
+[par2 | hilos  16] medicion  5/10 | sim =    1.762 ms/frame | frame =    1.762 ms | FPS =    567.5
+[par2 | hilos  16] medicion  6/10 | sim =    1.779 ms/frame | frame =    1.779 ms | FPS =    562.0
+[par2 | hilos  16] medicion  7/10 | sim =    1.754 ms/frame | frame =    1.754 ms | FPS =    570.0
+[par2 | hilos  16] medicion  8/10 | sim =    1.729 ms/frame | frame =    1.729 ms | FPS =    578.2
+[par2 | hilos  16] medicion  9/10 | sim =    1.732 ms/frame | frame =    1.732 ms | FPS =    577.4
+[par2 | hilos  16] medicion 10/10 | sim =    1.735 ms/frame | frame =    1.735 ms | FPS =    576.4
+
+=== RESUMEN (N = 500000) ===
+Speedup calculado con el PROMEDIO de las mediciones del tiempo de simulacion.
+
+modo  hilos       sim(ms)      desv   speedup  eficiencia  frame(ms)       FPS  speedupFPS  resultado
+seq   1             6.824     0.158     1.000       1.000      6.825     146.6       1.000      igual
+par1  4             3.629     0.044     1.880       0.470      3.629     275.6       1.880      igual
+par2  4             3.759     0.109     1.815       0.454      3.760     266.2       1.816      igual
+par1  8             2.320     0.085     2.942       0.368      2.320     431.6       2.944      igual
+par2  8             2.332     0.048     2.926       0.366      2.332     428.9       2.926      igual
+par1  16            1.725     0.040     3.955       0.247      1.726     579.8       3.955      igual
+par2  16            1.754     0.035     3.891       0.243      1.754     570.3       3.890      igual
+
+'resultado' compara el estado final contra la version secuencial (igual = las versiones paralelas calculan lo mismo).
+Mediciones guardadas en: results/benchmark.csv
+Resumen guardado en:     results/benchmark_resumen.csv
